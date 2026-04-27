@@ -1,1 +1,40 @@
+<!DOCTYPE html>
+
+<html>
+<body>
+<h2>在线多人游戏</h2>
+<canvas id="c" width="500" height="400"></canvas>
+
+<script>
 let ws = new WebSocket("wss://game-server-production-0e42.up.railway.app");
+
+let players = {};
+
+ws.onmessage = e=>{
+  players = JSON.parse(e.data);
+};
+
+let ctx = document.getElementById("c").getContext("2d");
+
+function loop(){
+  ctx.clearRect(0,0,500,400);
+
+  for(let id in players){
+    let p = players[id];
+    ctx.fillRect(p.x, p.y, 20, 20);
+  }
+
+  requestAnimationFrame(loop);
+}
+loop();
+
+document.onmousemove = e=>{
+  ws.send(JSON.stringify({
+    x: e.clientX % 500,
+    y: e.clientY % 400
+  }));
+};
+</script>
+
+</body>
+</html>

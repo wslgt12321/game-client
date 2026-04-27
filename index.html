@@ -21,17 +21,41 @@ function loop(){
 
   for(let id in players){
     let p = players[id];
+
+    // 人物
+    ctx.fillStyle = "black";
     ctx.fillRect(p.x, p.y, 20, 20);
+
+    // 名字
+    ctx.fillStyle = "blue";
+    ctx.fillText(p.name, p.x, p.y - 10);
+
+    // 血条背景
+    ctx.fillStyle = "red";
+    ctx.fillRect(p.x, p.y - 5, 20, 3);
+
+    // 血条
+    ctx.fillStyle = "green";
+    ctx.fillRect(p.x, p.y - 5, 20 * (p.hp/100), 3);
   }
 
   requestAnimationFrame(loop);
 }
 loop();
 
+// 移动
 document.onmousemove = e=>{
   ws.send(JSON.stringify({
+    type:"move",
     x: e.clientX % 500,
     y: e.clientY % 400
+  }));
+};
+
+// 攻击（点击）
+document.onclick = ()=>{
+  ws.send(JSON.stringify({
+    type:"attack"
   }));
 };
 </script>

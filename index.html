@@ -7,13 +7,13 @@
 html,body{
   margin:0;
   overflow:hidden;
-  background:#111;
-  color:white;
+  background:#0a1f0a;
 }
 #ui{
   position:absolute;
   top:10px;
   left:10px;
+  color:white;
 }
 </style>
 </head>
@@ -21,7 +21,7 @@ html,body{
 <body>
 
 <div id="ui">
-  <div>🔥 摄像机跟随版</div>
+  🌍 刷怪地图
   <div>金币：<span id="gold">0</span></div>
 </div>
 
@@ -30,7 +30,7 @@ html,body{
 <script>
 let ws = new WebSocket("wss://game-server-production-0e42.up.railway.app");
 
-let players={},skills=[],texts=[];
+let players={},skills=[],texts=[],monsters={};
 let myId=null;
 
 const canvas = document.getElementById("c");
@@ -43,7 +43,6 @@ function resize(){
 resize();
 window.onresize = resize;
 
-// 🌍 摄像机
 let camera = {x:0,y:0};
 
 ws.onmessage = e=>{
@@ -51,6 +50,7 @@ ws.onmessage = e=>{
   players = data.players;
   skills = data.skills;
   texts = data.texts;
+  monsters = data.monsters;
 
   if(!myId){
     myId = Object.keys(players)[0];
@@ -59,39 +59,39 @@ ws.onmessage = e=>{
   if(players[myId]){
     document.getElementById("gold").innerText = players[myId].gold || 0;
 
-    // 🎯 摄像机跟随自己
     camera.x = players[myId].x - canvas.width/2;
     camera.y = players[myId].y - canvas.height/2;
   }
 };
 
-// 🌍 世界坐标 → 屏幕坐标
 function toScreen(x,y){
-  return {
-    x: x - camera.x,
-    y: y - camera.y
-  };
+  return {x:x-camera.x,y:y-camera.y};
 }
 
 function loop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // 🌍 画地图网格
-  let size = 50;
-  ctx.strokeStyle="#222";
-
-  for(let x= -camera.x%size; x<canvas.width; x+=size){
-    ctx.beginPath();
-    ctx.moveTo(x,0);
-    ctx.lineTo(x,canvas.height);
-    ctx.stroke();
+  // 🌱 草地贴图（伪随机）
+  for(let x=-camera.x%40; x<canvas.width; x+=40){
+    for(let y=-camera.y%40; y<canvas.height; y+=40){
+      ctx.fillStyle = ( (x+y)%80==0 ) ? "#1f5f1f" : "#145214";
+      ctx.fillRect(x,y,40,40);
+    }
   }
 
-  for(let y= -camera.y%size; y<canvas.height; y+=size){
-    ctx.beginPath();
-    ctx.moveTo(0,y);
-    ctx.lineTo(canvas.width,y);
-    ctx.stroke();
+  // 🧟 怪物
+  for(let id in monsters){
+    let m = monsters[id];
+    let pos = toScreen(m.x,m.y);
+
+    ctx.fillStyle="purple";
+    ctx.fillRect(pos.x,pos.y,20,20);
+
+    // 血条
+    ctx.fillStyle="red";
+    ctx.fillRect(pos.x,pos.y-5,20,3);
+    ctx.fillStyle="lime";
+    ctx.fillRect(pos.x,pos.y-5,20*(m.hp/50),3);
   }
 
   // 玩家
@@ -104,18 +104,11 @@ function loop(){
 
     ctx.fillStyle="cyan";
     ctx.fillText(p.name,pos.x,pos.y-10);
-
-    // 血条
-    ctx.fillStyle="red";
-    ctx.fillRect(pos.x,pos.y-5,20,3);
-    ctx.fillStyle="lime";
-    ctx.fillRect(pos.x,pos.y-5,20*(p.hp/100),3);
   }
 
   // 技能
   for(let s of skills){
     let pos = toScreen(s.x,s.y);
-
     ctx.fillStyle="orange";
     ctx.beginPath();
     ctx.arc(pos.x,pos.y,6,0,Math.PI*2);
@@ -125,7 +118,6 @@ function loop(){
   // 飘字
   for(let t of texts){
     let pos = toScreen(t.x,t.y);
-
     ctx.fillStyle="yellow";
     ctx.fillText(t.value,pos.x,pos.y);
   }
@@ -134,18 +126,16 @@ function loop(){
 }
 loop();
 
-// 🎯 鼠标 → 世界坐标
-function getWorldPos(e){
+// 坐标转换
+function worldPos(e){
   return {
     x: e.clientX + camera.x,
     y: e.clientY + camera.y
   };
 }
 
-// 移动
 document.onmousemove=e=>{
-  let pos = getWorldPos(e);
-
+  let pos = worldPos(e);
   ws.send(JSON.stringify({
     type:"move",
     x:pos.x,
@@ -153,12 +143,11 @@ document.onmousemove=e=>{
   }));
 };
 
-// 技能
 document.onclick=e=>{
   if(!myId || !players[myId]) return;
 
   let p = players[myId];
-  let target = getWorldPos(e);
+  let target = worldPos(e);
 
   let dx = target.x - p.x;
   let dy = target.y - p.y;

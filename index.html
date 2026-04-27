@@ -1,18 +1,56 @@
 <!DOCTYPE html>
 
 <html>
+<head>
+<meta charset="UTF-8">
+<style>
+html,body{
+  margin:0;
+  padding:0;
+  overflow:hidden;
+  background:#111;
+  color:white;
+  font-family:sans-serif;
+}
+
+#ui{
+position:absolute;
+top:10px;
+left:10px;
+z-index:10;
+}
+
+canvas{
+display:block;
+} </style>
+
+</head>
+
 <body>
 
-<h2>🔥 技能战斗游戏</h2>
-<div>金币：<span id="gold">0</span></div>
+<div id="ui">
+  <h3>🔥 技能战斗游戏</h3>
+  <div>金币：<span id="gold">0</span></div>
+</div>
 
-<canvas id="c" width="500" height="400"></canvas>
+<canvas id="c"></canvas>
 
 <script>
 let ws = new WebSocket("wss://game-server-production-0e42.up.railway.app");
 
 let players={},skills=[],texts=[];
 let myId=null;
+
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+// 🔥 自动全屏
+function resize(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.onresize = resize;
 
 ws.onmessage = e=>{
   let data = JSON.parse(e.data);
@@ -29,24 +67,23 @@ ws.onmessage = e=>{
   }
 };
 
-let ctx = document.getElementById("c").getContext("2d");
-
 function loop(){
-  ctx.clearRect(0,0,500,400);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
   // 玩家
   for(let id in players){
     let p = players[id];
 
-    ctx.fillStyle="black";
+    ctx.fillStyle="white";
     ctx.fillRect(p.x,p.y,20,20);
 
-    ctx.fillStyle="blue";
+    ctx.fillStyle="cyan";
     ctx.fillText(p.name,p.x,p.y-10);
 
+    // 血条
     ctx.fillStyle="red";
     ctx.fillRect(p.x,p.y-5,20,3);
-    ctx.fillStyle="green";
+    ctx.fillStyle="lime";
     ctx.fillRect(p.x,p.y-5,20*(p.hp/100),3);
   }
 
@@ -60,7 +97,7 @@ function loop(){
 
   // 飘字
   for(let t of texts){
-    ctx.fillStyle="red";
+    ctx.fillStyle="yellow";
     ctx.fillText(t.value,t.x,t.y);
   }
 
@@ -68,12 +105,12 @@ function loop(){
 }
 loop();
 
-// 移动
+// 移动（用鼠标位置）
 document.onmousemove=e=>{
   ws.send(JSON.stringify({
     type:"move",
-    x:e.clientX%500,
-    y:e.clientY%400
+    x:e.clientX,
+    y:e.clientY
   }));
 };
 

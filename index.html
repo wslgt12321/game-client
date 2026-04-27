@@ -1,4 +1,12 @@
-<script>
+<!DOCTYPE html>
+
+<html>
+<body>
+<h2>在线刷怪游戏</h2>
+<div>金币：<span id="gold">0</span></div>
+<canvas id="c" width="500" height="400"></canvas>
+
+<<script>
 let ws = new WebSocket("wss://game-server-production-0e42.up.railway.app");
 
 let players={},skills=[],texts=[];
@@ -80,3 +88,76 @@ document.onclick=e=>{
   }));
 };
 </script>
+>
+let ws = new WebSocket("wss://game-server-production-0e42.up.railway.app");
+
+let players={},monsters={},coins=[];
+let myId=null;
+
+ws.onmessage = e=>{
+  let data = JSON.parse(e.data);
+  players = data.players;
+  monsters = data.monsters;
+  coins = data.coins;
+
+  if(!myId){
+    myId = Object.keys(players)[0];
+  }
+
+  if(players[myId]){
+    document.getElementById("gold").innerText = players[myId].gold;
+  }
+};
+
+let ctx = document.getElementById("c").getContext("2d");
+
+function loop(){
+  ctx.clearRect(0,0,500,400);
+
+  // 玩家
+  for(let id in players){
+    let p = players[id];
+    ctx.fillStyle="black";
+    ctx.fillRect(p.x,p.y,20,20);
+
+    ctx.fillStyle="blue";
+    ctx.fillText(p.name,p.x,p.y-10);
+
+    ctx.fillStyle="red";
+    ctx.fillRect(p.x,p.y-5,20,3);
+    ctx.fillStyle="green";
+    ctx.fillRect(p.x,p.y-5,20*(p.hp/100),3);
+  }
+
+  // 怪物
+  for(let id in monsters){
+    let m = monsters[id];
+    ctx.fillStyle="purple";
+    ctx.fillRect(m.x,m.y,20,20);
+  }
+
+  // 金币
+  for(let c of coins){
+    ctx.fillStyle="gold";
+    ctx.fillRect(c.x,c.y,10,10);
+  }
+
+  requestAnimationFrame(loop);
+}
+loop();
+
+document.onmousemove=e=>{
+  ws.send(JSON.stringify({
+    type:"move",
+    x:e.clientX%500,
+    y:e.clientY%400
+  }));
+};
+
+document.onclick=()=>{
+  ws.send(JSON.stringify({type:"attack"}));
+};
+</script>
+
+</body>
+</html>

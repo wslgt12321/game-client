@@ -6,30 +6,22 @@
 <style>
 html,body{
   margin:0;
-  padding:0;
   overflow:hidden;
   background:#111;
   color:white;
-  font-family:sans-serif;
 }
-
 #ui{
-position:absolute;
-top:10px;
-left:10px;
-z-index:10;
+  position:absolute;
+  top:10px;
+  left:10px;
 }
-
-canvas{
-display:block;
-} </style>
-
+</style>
 </head>
 
 <body>
 
 <div id="ui">
-  <h3>🔥 技能战斗游戏</h3>
+  <div>🔥 摄像机跟随版</div>
   <div>金币：<span id="gold">0</span></div>
 </div>
 
@@ -44,13 +36,15 @@ let myId=null;
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
-// 🔥 自动全屏
 function resize(){
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 }
 resize();
 window.onresize = resize;
+
+// 🌍 摄像机
+let camera = {x:0,y:0};
 
 ws.onmessage = e=>{
   let data = JSON.parse(e.data);
@@ -64,64 +58,110 @@ ws.onmessage = e=>{
 
   if(players[myId]){
     document.getElementById("gold").innerText = players[myId].gold || 0;
+
+    // 🎯 摄像机跟随自己
+    camera.x = players[myId].x - canvas.width/2;
+    camera.y = players[myId].y - canvas.height/2;
   }
 };
+
+// 🌍 世界坐标 → 屏幕坐标
+function toScreen(x,y){
+  return {
+    x: x - camera.x,
+    y: y - camera.y
+  };
+}
 
 function loop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
+  // 🌍 画地图网格
+  let size = 50;
+  ctx.strokeStyle="#222";
+
+  for(let x= -camera.x%size; x<canvas.width; x+=size){
+    ctx.beginPath();
+    ctx.moveTo(x,0);
+    ctx.lineTo(x,canvas.height);
+    ctx.stroke();
+  }
+
+  for(let y= -camera.y%size; y<canvas.height; y+=size){
+    ctx.beginPath();
+    ctx.moveTo(0,y);
+    ctx.lineTo(canvas.width,y);
+    ctx.stroke();
+  }
+
   // 玩家
   for(let id in players){
     let p = players[id];
+    let pos = toScreen(p.x,p.y);
 
     ctx.fillStyle="white";
-    ctx.fillRect(p.x,p.y,20,20);
+    ctx.fillRect(pos.x,pos.y,20,20);
 
     ctx.fillStyle="cyan";
-    ctx.fillText(p.name,p.x,p.y-10);
+    ctx.fillText(p.name,pos.x,pos.y-10);
 
     // 血条
     ctx.fillStyle="red";
-    ctx.fillRect(p.x,p.y-5,20,3);
+    ctx.fillRect(pos.x,pos.y-5,20,3);
     ctx.fillStyle="lime";
-    ctx.fillRect(p.x,p.y-5,20*(p.hp/100),3);
+    ctx.fillRect(pos.x,pos.y-5,20*(p.hp/100),3);
   }
 
-  // 火球
+  // 技能
   for(let s of skills){
+    let pos = toScreen(s.x,s.y);
+
     ctx.fillStyle="orange";
     ctx.beginPath();
-    ctx.arc(s.x,s.y,6,0,Math.PI*2);
+    ctx.arc(pos.x,pos.y,6,0,Math.PI*2);
     ctx.fill();
   }
 
   // 飘字
   for(let t of texts){
+    let pos = toScreen(t.x,t.y);
+
     ctx.fillStyle="yellow";
-    ctx.fillText(t.value,t.x,t.y);
+    ctx.fillText(t.value,pos.x,pos.y);
   }
 
   requestAnimationFrame(loop);
 }
 loop();
 
-// 移动（用鼠标位置）
+// 🎯 鼠标 → 世界坐标
+function getWorldPos(e){
+  return {
+    x: e.clientX + camera.x,
+    y: e.clientY + camera.y
+  };
+}
+
+// 移动
 document.onmousemove=e=>{
+  let pos = getWorldPos(e);
+
   ws.send(JSON.stringify({
     type:"move",
-    x:e.clientX,
-    y:e.clientY
+    x:pos.x,
+    y:pos.y
   }));
 };
 
-// 点击释放技能
+// 技能
 document.onclick=e=>{
   if(!myId || !players[myId]) return;
 
   let p = players[myId];
+  let target = getWorldPos(e);
 
-  let dx = e.clientX - p.x;
-  let dy = e.clientY - p.y;
+  let dx = target.x - p.x;
+  let dy = target.y - p.y;
   let len = Math.sqrt(dx*dx+dy*dy);
 
   ws.send(JSON.stringify({

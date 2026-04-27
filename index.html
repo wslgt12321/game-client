@@ -3,20 +3,18 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>在线刷怪游戏</title>
+<title>图片地图游戏</title>
 <style>
 html,body{
   margin:0;
   overflow:hidden;
-  background:#0a1f0a;
-  color:white;
-  font-family:sans-serif;
+  background:#000;
 }
 #ui{
   position:absolute;
   top:10px;
   left:10px;
-  z-index:10;
+  color:white;
 }
 </style>
 </head>
@@ -24,7 +22,7 @@ html,body{
 <body>
 
 <div id="ui">
-  <div>🌍 在线刷怪游戏（地图版）</div>
+  🌍 图片地图（草地+道路+树）
   <div>金币：<span id="gold">0</span></div>
 </div>
 
@@ -39,6 +37,16 @@ let myId=null;
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
+// ===== 图片资源 =====
+let grass = new Image();
+grass.src = "https://i.imgur.com/3QZQZ6p.png";
+
+let road = new Image();
+road.src = "https://i.imgur.com/8QxYb9R.png";
+
+let tree = new Image();
+tree.src = "https://i.imgur.com/9Xn4y7K.png";
+
 // 全屏
 function resize(){
   canvas.width = window.innerWidth;
@@ -49,6 +57,16 @@ window.onresize = resize;
 
 // 摄像机
 let camera = {x:0,y:0};
+
+// 🌳 树（固定世界）
+let trees = [];
+for(let i=0;i<40;i++){
+  trees.push({
+    x: Math.random()*2000,
+    y: Math.random()*2000,
+    size:40
+  });
+}
 
 // 接收数据
 ws.onmessage = e=>{
@@ -70,37 +88,46 @@ ws.onmessage = e=>{
   }
 };
 
-// 世界→屏幕
+// 坐标转换
 function toScreen(x,y){
   return {x:x-camera.x,y:y-camera.y};
+}
+
+// 🚧 碰撞检测（树）
+function collide(x,y){
+  for(let t of trees){
+    let dx = x - t.x;
+    let dy = y - t.y;
+    if(Math.sqrt(dx*dx+dy*dy) < 30){
+      return true;
+    }
+  }
+  return false;
 }
 
 // 主循环
 function loop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // 🌱 草地地图（完整替代网格）
-  let tile = 60;
+  let tile = 64;
 
+  // 🌱 草地铺满
   for(let x=-camera.x%tile; x<canvas.width; x+=tile){
     for(let y=-camera.y%tile; y<canvas.height; y+=tile){
-
-      let worldX = Math.floor((x+camera.x)/tile);
-      let worldY = Math.floor((y+camera.y)/tile);
-
-      let seed = (worldX * 73856093) ^ (worldY * 19349663);
-      let r = Math.abs(seed)%3;
-
-      if(r==0){
-        ctx.fillStyle = "#1f7a1f";
-      }else if(r==1){
-        ctx.fillStyle = "#145214";
-      }else{
-        ctx.fillStyle = "#2d8f2d";
-      }
-
-      ctx.fillRect(x,y,tile,tile);
+      ctx.drawImage(grass,x,y,tile,tile);
     }
+  }
+
+  // 🛣️ 道路（简单生成）
+  for(let i=-1000;i<2000;i+=tile){
+    let pos = toScreen(i,500);
+    ctx.drawImage(road,pos.x,pos.y,tile,tile);
+  }
+
+  // 🌳 树
+  for(let t of trees){
+    let pos = toScreen(t.x,t.y);
+    ctx.drawImage(tree,pos.x-20,pos.y-40,40,60);
   }
 
   // 🧟 怪物
@@ -110,11 +137,6 @@ function loop(){
 
     ctx.fillStyle="purple";
     ctx.fillRect(pos.x,pos.y,20,20);
-
-    ctx.fillStyle="red";
-    ctx.fillRect(pos.x,pos.y-5,20,3);
-    ctx.fillStyle="lime";
-    ctx.fillRect(pos.x,pos.y-5,20*(m.hp/50),3);
   }
 
   // 👤 玩家
@@ -129,45 +151,24 @@ function loop(){
     ctx.fillText(p.name,pos.x,pos.y-10);
   }
 
-  // 🔥 技能
-  for(let s of skills){
-    let pos = toScreen(s.x,s.y);
-
-    ctx.fillStyle="orange";
-    ctx.beginPath();
-    ctx.arc(pos.x,pos.y,6,0,Math.PI*2);
-    ctx.fill();
-  }
-
-  // 💬 飘字
-  for(let t of texts){
-    let pos = toScreen(t.x,t.y);
-
-    ctx.fillStyle="yellow";
-    ctx.fillText(t.value,pos.x,pos.y);
-  }
-
   requestAnimationFrame(loop);
 }
 loop();
 
-// 鼠标 → 世界坐标
-function worldPos(e){
-  return {
-    x: e.clientX + camera.x,
-    y: e.clientY + camera.y
-  };
-}
-
-// 移动
+// 鼠标移动（带碰撞）
 document.onmousemove=e=>{
-  let pos = worldPos(e);
+  if(!myId || !players[myId]) return;
 
-  ws.send(JSON.stringify({
-    type:"move",
-    x:pos.x,
-    y:pos.y
-  }));
+  let nx = e.clientX + camera.x;
+  let ny = e.clientY + camera.y;
+
+  if(!collide(nx,ny)){
+    ws.send(JSON.stringify({
+      type:"move",
+      x:nx,
+      y:ny
+    }));
+  }
 };
 
 // 技能
@@ -175,10 +176,11 @@ document.onclick=e=>{
   if(!myId || !players[myId]) return;
 
   let p = players[myId];
-  let target = worldPos(e);
+  let tx = e.clientX + camera.x;
+  let ty = e.clientY + camera.y;
 
-  let dx = target.x - p.x;
-  let dy = target.y - p.y;
+  let dx = tx - p.x;
+  let dy = ty - p.y;
   let len = Math.sqrt(dx*dx+dy*dy);
 
   ws.send(JSON.stringify({

@@ -1,29 +1,17 @@
-<!DOCTYPE html>
-
-<html>
-<body>
-<h2>在线刷怪游戏</h2>
-<div>金币：<span id="gold">0</span></div>
-<canvas id="c" width="500" height="400"></canvas>
-
 <script>
 let ws = new WebSocket("wss://game-server-production-0e42.up.railway.app");
 
-let players={},monsters={},coins=[];
+let players={},skills=[],texts=[];
 let myId=null;
 
 ws.onmessage = e=>{
   let data = JSON.parse(e.data);
   players = data.players;
-  monsters = data.monsters;
-  coins = data.coins;
+  skills = data.skills;
+  texts = data.texts;
 
   if(!myId){
     myId = Object.keys(players)[0];
-  }
-
-  if(players[myId]){
-    document.getElementById("gold").innerText = players[myId].gold;
   }
 };
 
@@ -35,6 +23,7 @@ function loop(){
   // 玩家
   for(let id in players){
     let p = players[id];
+
     ctx.fillStyle="black";
     ctx.fillRect(p.x,p.y,20,20);
 
@@ -47,23 +36,25 @@ function loop(){
     ctx.fillRect(p.x,p.y-5,20*(p.hp/100),3);
   }
 
-  // 怪物
-  for(let id in monsters){
-    let m = monsters[id];
-    ctx.fillStyle="purple";
-    ctx.fillRect(m.x,m.y,20,20);
+  // 🔥 技能（火球）
+  for(let s of skills){
+    ctx.fillStyle="orange";
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,5,0,Math.PI*2);
+    ctx.fill();
   }
 
-  // 金币
-  for(let c of coins){
-    ctx.fillStyle="gold";
-    ctx.fillRect(c.x,c.y,10,10);
+  // 💥 飘字
+  for(let t of texts){
+    ctx.fillStyle="red";
+    ctx.fillText(t.value,t.x,t.y);
   }
 
   requestAnimationFrame(loop);
 }
 loop();
 
+// 鼠标移动
 document.onmousemove=e=>{
   ws.send(JSON.stringify({
     type:"move",
@@ -72,10 +63,20 @@ document.onmousemove=e=>{
   }));
 };
 
-document.onclick=()=>{
-  ws.send(JSON.stringify({type:"attack"}));
+// 点击释放技能
+document.onclick=e=>{
+  if(!myId || !players[myId]) return;
+
+  let p = players[myId];
+
+  let dx = e.clientX - p.x;
+  let dy = e.clientY - p.y;
+  let len = Math.sqrt(dx*dx+dy*dy);
+
+  ws.send(JSON.stringify({
+    type:"skill",
+    dx: dx/len,
+    dy: dy/len
+  }));
 };
 </script>
-
-</body>
-</html>
